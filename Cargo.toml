@@ -1,0 +1,11 @@
+[package]
+name = "component_translations"
+version = "0.1.0"
+authors = ["benjamin <bbloot@dynasource.com>"]
+
+[dependencies]
+lazy_static = "1.1.0"
+regex = "1"
+serde = "1.0"
+serde_json = "1.0"
+serde_derive = "1.0"
