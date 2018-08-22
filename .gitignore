@@ -1,0 +1,4 @@
+target/*
+.idea/*
+component_translations.iml
+component_translation_keys.json
