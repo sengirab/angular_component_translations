@@ -9,19 +9,19 @@ extern crate serde_derive;
 extern crate serde_json;
 
 use component::{AngularComponent, ComponentType};
+use component::TranslationResponse;
 use regex::CaptureMatches;
 use regex::Regex;
 use regex::RegexSet;
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::env;
 use std::io;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::RwLock;
-use utilities::{create_translate_file, return_components};
-use utilities::replace_extension;
-use component::TranslationResponse;
+use utilities::{create_translate_file, replace_extension, return_components};
 
 mod component;
 mod utilities;
@@ -32,9 +32,10 @@ lazy_static! {
     static ref ROUTE: Regex = Regex::new(r"(?ms)(\{.*?children[^]]*\].*?}|\{.*?})").unwrap();
 
     static ref PATH: Regex = Regex::new(r#"(?m)path:\s['"`](.*?)['"`]"#).unwrap();
-    static ref COMPONENT: Regex = Regex::new(r"(?im)component:\s?(.*).+?").unwrap();
+    static ref COMPONENT: Regex = Regex::new(r"(?m)component:\s?(\w+)").unwrap();
     static ref LOAD: Regex = Regex::new(r"(?mis)(?:\schildren.*#)|(\w+\.\w+)#").unwrap();
     static ref CHILDREN: Regex = Regex::new(r"(?ms)children: \[(.*?)\]").unwrap();
+    static ref COMPONENTS: Regex = Regex::new(r"(?m)<(app-\w+)").unwrap();
 }
 
 lazy_static! {
@@ -79,7 +80,7 @@ fn main() {
             _ => {
                 let res = TranslationResponse {
                     routes: get_routes(&routes[main_route]),
-                    components: STATE.read().unwrap().to_owned()
+                    components: STATE.read().unwrap().to_owned(),
                 };
 
                 create_translate_file(res);
@@ -89,7 +90,7 @@ fn main() {
     }
 }
 
-fn get_routes(component: &AngularComponent) -> HashMap<String, Vec<String>>{
+fn get_routes(component: &AngularComponent) -> HashMap<String, Vec<String>> {
     let content = component.open_ts();
     let routes = capture_group(ROUTES.captures_iter(&content));
 
@@ -127,9 +128,11 @@ fn setup_route_hierarchy(routes: &String, path: &String, map: &mut HashMap<Strin
                 1 => {
                     let matches = capture_group(COMPONENT.captures_iter(group));
                     println!("Found component on {:?} on path: {:?}", matches, path);
+                    let matches = matches.unwrap();
+                    find_components(&matches);
 
                     let components = map.entry(path.clone()).or_insert(Vec::new());
-                    components.push(matches.unwrap())
+                    components.push(matches)
                 }
                 // Find file that's being loaded and go recursive
                 2 => {
@@ -154,6 +157,20 @@ fn setup_route_hierarchy(routes: &String, path: &String, map: &mut HashMap<Strin
             }
         }
     }
+}
+
+fn find_components(name: &String) {
+    // find component
+    // refactor to use vec filter with only components
+    let state = STATE.read().unwrap();
+    let component = state.iter().find(|c| &c.name == name).unwrap();
+    let component = component.open_html();
+
+    // find components in html
+    let mut components: Vec<String> = COMPONENTS.captures_iter(&component).into_iter().map(|c| c[1].to_string()).collect();
+    components.dedup();
+
+    println!("Amount of components on route {:?} \n", components);
 }
 
 fn capture_group(captures: CaptureMatches) -> Option<String> {
