@@ -32,7 +32,7 @@ lazy_static! {
 
     static ref PATH: Regex = Regex::new(r#"(?m)path:\s['"`](.*?)['"`]"#).unwrap();
     static ref COMPONENT: Regex = Regex::new(r"(?m)component:\s?(.*)[},\s]").unwrap();
-    static ref LOAD: Regex = Regex::new(r#"(?m)\sloadChildren:\s['"`].*/(.*)#.*['"`]"#).unwrap();
+    static ref LOAD: Regex = Regex::new(r"(?mis)(?:\schildren.*#)|(\w+\.\w+)#").unwrap();
     static ref CHILDREN: Regex = Regex::new(r"(?ms)children: \[(.*?)\]").unwrap();
 }
 
@@ -93,7 +93,7 @@ fn get_routes(component: &AngularComponent) {
     // Add "path" and "hash map" as params, hash map is used to add routes.
     // path can be used to concat last path.
     let mut map = HashMap::new();
-    setup_route_hierarchy(&routes, &String::new(), &mut map);
+    setup_route_hierarchy(&routes.unwrap(), &String::new(), &mut map);
 
     println!("Finished map {:?}", map);
 }
@@ -112,7 +112,7 @@ fn setup_route_hierarchy(routes: &String, path: &String, map: &mut HashMap<Strin
                 // Concat path. Only thing to do here is concat, so components can be added.
                 0 => {
                     let mut matches = capture_group(PATH.captures_iter(group));
-                    path.push_str(&matches);
+                    path.push_str(&matches.unwrap());
 
                     if path.is_empty() {
                         path.push_str("/");
@@ -125,22 +125,27 @@ fn setup_route_hierarchy(routes: &String, path: &String, map: &mut HashMap<Strin
                     println!("Found component on {:?} on path: {:?}", matches, path);
 
                     let components = map.entry(path.clone()).or_insert(Vec::new());
-                    components.push(matches)
+                    components.push(matches.unwrap())
                 }
                 // Find file that's being loaded and go recursive
                 2 => {
                     let matches = capture_group(LOAD.captures_iter(group));
-                    let file_name = replace_extension(&matches, "routing.ts");
-                    let state = STATE.read().unwrap();
 
-                    let component = state.iter().find(|c| c.file_name == file_name).unwrap();
-                    let routes = capture_group(ROUTES.captures_iter(&component.open_ts()));
-                    setup_route_hierarchy(&routes, &path, map);
+                    if let Some(c) = capture_group(LOAD.captures_iter(group)) {
+                        let file_name = replace_extension(&c, "routing.ts");
+                        let state = STATE.read().unwrap();
+
+                        let component = state.iter().find(|c| c.file_name == file_name).unwrap();
+                        let routes = capture_group(ROUTES.captures_iter(&component.open_ts()));
+
+                        setup_route_hierarchy(&routes.unwrap(), &path, map);
+                    }
                 }
                 // Go recursive with matches.
                 3 => {
                     let matches = capture_group(CHILDREN.captures_iter(group));
-                    setup_route_hierarchy(&matches, &path, map);
+                    println!("Should find dashboard in here {:?}", matches);
+                    setup_route_hierarchy(&matches.unwrap(), &path, map);
                 }
                 _ => {}
             }
@@ -148,8 +153,15 @@ fn setup_route_hierarchy(routes: &String, path: &String, map: &mut HashMap<Strin
     }
 }
 
-fn capture_group(captures: CaptureMatches) -> String {
+// Remember, children with load children will both match. Figure something out.
+fn capture_group(captures: CaptureMatches) -> Option<String> {
     captures
         .take(1)
-        .fold(String::new(), |res, item| item[1].to_string())
+        .fold(None, |res, item| {
+            if let Some(i) = item.get(1) {
+                return Some(item[1].to_string());
+            }
+
+            None
+        })
 }
