@@ -4,15 +4,20 @@ use std::fs;
 use std::fs::DirEntry;
 use std::fs::File;
 use std::io::prelude::*;
+use std::collections::HashMap;
 
 lazy_static! {
     static ref RE_TS: Regex = Regex::new(r#"(?m)this\.translate\.instant\(['"`]([\w.${}]*)['"`]"#).unwrap();
-}
-lazy_static! {
     static ref RE_HTML: Regex = Regex::new(r#"(?m)\{\{\s?['|"]([\w|\.]*)['|"]\s?\|\s?translate\s?}}"#).unwrap();
 }
 
 #[derive(Clone, Debug, Serialize)]
+pub struct TranslationResponse {
+    pub components: Vec<AngularComponent>,
+    pub routes: HashMap<String, Vec<String>>
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq)]
 pub enum ComponentType {
     Service,
     Component,

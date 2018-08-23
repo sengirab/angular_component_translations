@@ -1,6 +1,6 @@
 extern crate serde_json;
 
-use component::{AngularComponent, ComponentType};
+use component::{AngularComponent, ComponentType, TranslationResponse};
 use regex::CaptureMatches;
 use regex::Regex;
 use std::fs;
@@ -13,15 +13,10 @@ lazy_static! {
     static ref RE_HTML: Regex = Regex::new(r#"(?m)\{\{\s?['|"]([\w|\.]*)['|"]\s?\|\s?translate\s?}}"#).unwrap();
 }
 
-pub fn create_translate_file(vec: Vec<AngularComponent>) {
-    let vec: Vec<AngularComponent> = vec.into_iter().filter(|component| {
-        match component.kind {
-            ComponentType::Ignore => false,
-            _ => true,
-        }
-    }).collect();
+pub fn create_translate_file(mut translations: TranslationResponse) {
+    translations.components = remove_empty_and_ignored(translations.components);
 
-    let json = serde_json::to_string(&vec).unwrap();
+    let json = serde_json::to_string(&translations).unwrap();
     let mut file = File::create("component_translation_keys.json")
         .expect("Failed creating file.");
 
@@ -54,6 +49,16 @@ pub fn return_components(path: &Path, vec: Vec<AngularComponent>) -> Vec<Angular
     }
 
     vec
+}
+
+pub fn remove_empty_and_ignored(vec: Vec<AngularComponent>) -> Vec<AngularComponent> {
+    vec.into_iter().filter(|component| {
+        if component.kind == ComponentType::Ignore || component.translations.is_empty() {
+            return false;
+        }
+
+        true
+    }).collect()
 }
 
 pub fn replace_extension(file_name: &String, replace: &str) -> String {

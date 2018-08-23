@@ -21,6 +21,7 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use utilities::{create_translate_file, return_components};
 use utilities::replace_extension;
+use component::TranslationResponse;
 
 mod component;
 mod utilities;
@@ -31,7 +32,7 @@ lazy_static! {
     static ref ROUTE: Regex = Regex::new(r"(?ms)(\{.*?children[^]]*\].*?}|\{.*?})").unwrap();
 
     static ref PATH: Regex = Regex::new(r#"(?m)path:\s['"`](.*?)['"`]"#).unwrap();
-    static ref COMPONENT: Regex = Regex::new(r"(?m)component:\s?(.*)[},\s]").unwrap();
+    static ref COMPONENT: Regex = Regex::new(r"(?im)component:\s?(.*).+?").unwrap();
     static ref LOAD: Regex = Regex::new(r"(?mis)(?:\schildren.*#)|(\w+\.\w+)#").unwrap();
     static ref CHILDREN: Regex = Regex::new(r"(?ms)children: \[(.*?)\]").unwrap();
 }
@@ -76,16 +77,19 @@ fn main() {
         match main_route.cmp(&length) {
             Ordering::Greater => println!("Choose from the list please"),
             _ => {
-                get_routes(&routes[main_route]);
-                continue;
+                let res = TranslationResponse {
+                    routes: get_routes(&routes[main_route]),
+                    components: STATE.read().unwrap().to_owned()
+                };
+
+                create_translate_file(res);
+                break;
             }
         };
     }
-
-    create_translate_file(STATE.read().unwrap().to_owned());
 }
 
-fn get_routes(component: &AngularComponent) {
+fn get_routes(component: &AngularComponent) -> HashMap<String, Vec<String>>{
     let content = component.open_ts();
     let routes = capture_group(ROUTES.captures_iter(&content));
 
@@ -95,7 +99,7 @@ fn get_routes(component: &AngularComponent) {
     let mut map = HashMap::new();
     setup_route_hierarchy(&routes.unwrap(), &String::new(), &mut map);
 
-    println!("Finished map {:?}", map);
+    map
 }
 
 fn setup_route_hierarchy(routes: &String, path: &String, map: &mut HashMap<String, Vec<String>>) {
@@ -144,7 +148,6 @@ fn setup_route_hierarchy(routes: &String, path: &String, map: &mut HashMap<Strin
                 // Go recursive with matches.
                 3 => {
                     let matches = capture_group(CHILDREN.captures_iter(group));
-                    println!("Should find dashboard in here {:?}", matches);
                     setup_route_hierarchy(&matches.unwrap(), &path, map);
                 }
                 _ => {}
@@ -153,7 +156,6 @@ fn setup_route_hierarchy(routes: &String, path: &String, map: &mut HashMap<Strin
     }
 }
 
-// Remember, children with load children will both match. Figure something out.
 fn capture_group(captures: CaptureMatches) -> Option<String> {
     captures
         .take(1)
