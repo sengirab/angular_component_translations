@@ -55,3 +55,13 @@ pub fn return_components(path: &Path, vec: Vec<AngularComponent>) -> Vec<Angular
 
     vec
 }
+
+pub fn replace_extension(file_name: &String, replace: &str) -> String {
+    let vec = file_name.split(".");
+    let mut vec = vec.collect::<Vec<&str>>();
+
+    vec.pop();
+    vec.push(replace);
+
+    vec.join(".")
+}

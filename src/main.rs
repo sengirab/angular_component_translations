@@ -20,6 +20,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::sync::RwLock;
 use utilities::{create_translate_file, return_components};
+use utilities::replace_extension;
 
 mod component;
 mod utilities;
@@ -30,7 +31,7 @@ lazy_static! {
     static ref ROUTE: Regex = Regex::new(r"(?ms)(\{.*?children[^]]*\].*?}|\{.*?})").unwrap();
 
     static ref PATH: Regex = Regex::new(r#"(?m)path:\s['"`](.*?)['"`]"#).unwrap();
-    static ref COMPONENT: Regex = Regex::new(r"(?m)component:\s?(.*)[}|,]").unwrap();
+    static ref COMPONENT: Regex = Regex::new(r"(?m)component:\s?(.*)[},\s]").unwrap();
     static ref LOAD: Regex = Regex::new(r#"(?m)\sloadChildren:\s['"`].*/(.*)#.*['"`]"#).unwrap();
     static ref CHILDREN: Regex = Regex::new(r"(?ms)children: \[(.*?)\]").unwrap();
 }
@@ -76,7 +77,7 @@ fn main() {
             Ordering::Greater => println!("Choose from the list please"),
             _ => {
                 get_routes(&routes[main_route]);
-                break;
+                continue;
             }
         };
     }
@@ -93,9 +94,11 @@ fn get_routes(component: &AngularComponent) {
     // path can be used to concat last path.
     let mut map = HashMap::new();
     setup_route_hierarchy(&routes, &String::new(), &mut map);
+
+    println!("Finished map {:?}", map);
 }
 
-fn setup_route_hierarchy(routes: &String, path: &String, map: &mut HashMap<String, String>) {
+fn setup_route_hierarchy(routes: &String, path: &String, map: &mut HashMap<String, Vec<String>>) {
     for route in ROUTE.captures_iter(routes) {
         let group: &str = &route[1];
         // Match all different types in here
@@ -106,38 +109,37 @@ fn setup_route_hierarchy(routes: &String, path: &String, map: &mut HashMap<Strin
         let mut path = path.clone();
         for item in set {
             match item {
-                // Concat path.
+                // Concat path. Only thing to do here is concat, so components can be added.
                 0 => {
-                    let matches = capture_group(PATH.captures_iter(group));
-                    path.push_str("/");
+                    let mut matches = capture_group(PATH.captures_iter(group));
                     path.push_str(&matches);
-                    println!("Got path {:?}", path);
+
+                    if path.is_empty() {
+                        path.push_str("/");
+                    }
                 }
                 // Search for components in components.
+                // Most important function here. Add components to routes in here.
                 1 => {
                     let matches = capture_group(COMPONENT.captures_iter(group));
-                    println!("Got component {:?}", matches);
+                    println!("Found component on {:?} on path: {:?}", matches, path);
+
+                    let components = map.entry(path.clone()).or_insert(Vec::new());
+                    components.push(matches)
                 }
                 // Find file that's being loaded and go recursive
                 2 => {
                     let matches = capture_group(LOAD.captures_iter(group));
-                    let vec = matches.split(".");
-                    let mut vec = vec.collect::<Vec<&str>>();
-
-                    vec.pop();
-                    vec.push(&"routing.ts");
-                    let file_name = vec.join(".");
+                    let file_name = replace_extension(&matches, "routing.ts");
                     let state = STATE.read().unwrap();
+
                     let component = state.iter().find(|c| c.file_name == file_name).unwrap();
                     let routes = capture_group(ROUTES.captures_iter(&component.open_ts()));
                     setup_route_hierarchy(&routes, &path, map);
-
-//                    println!("Got loaded children {:?}, go and find routing file. {:?}", matches, routes);
                 }
                 // Go recursive with matches.
                 3 => {
                     let matches = capture_group(CHILDREN.captures_iter(group));
-//                    println!("Got children {:?}", matches);
                     setup_route_hierarchy(&matches, &path, map);
                 }
                 _ => {}
