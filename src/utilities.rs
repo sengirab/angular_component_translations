@@ -7,6 +7,7 @@ use std::fs;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
+use std::collections::HashMap;
 
 lazy_static! {
     static ref RE_TS: Regex = Regex::new(r#"(?m)this\.translate\.instant\(['"`]([\w.${}]*)['"`]"#).unwrap();
@@ -14,7 +15,7 @@ lazy_static! {
 }
 
 pub fn create_translate_file(mut translations: TranslationResponse) {
-    translations.components = remove_empty_and_ignored(translations.components);
+//    translations.components = remove_empty_and_ignored(translations.components);
 
     let json = serde_json::to_string(&translations).unwrap();
     let mut file = File::create("component_translation_keys.json")
@@ -24,9 +25,9 @@ pub fn create_translate_file(mut translations: TranslationResponse) {
         .expect("Failed writing file");
 }
 
-pub fn return_components(path: &Path, vec: Vec<AngularComponent>) -> Vec<AngularComponent> {
+pub fn return_components(path: &Path, map: &mut HashMap<String, AngularComponent>) {
     let paths = fs::read_dir(path).unwrap();
-    let mut vec = vec;
+    let mut map = map;
 
     for path in paths {
         match path {
@@ -35,11 +36,12 @@ pub fn return_components(path: &Path, vec: Vec<AngularComponent>) -> Vec<Angular
                     let path = entry.path();
                     let path = &Path::new(path.as_path());
 
-                    vec = return_components(path, vec);
+                    return_components(path, &mut map);
                 } else {
                     if let Some(ex) = entry.path().extension() {
                         if ex == "ts" {
-                            vec.push(AngularComponent::new(entry));
+                            let component = AngularComponent::new(entry);
+                            map.insert(component.name.clone(), component);
                         }
                     }
                 }
@@ -47,8 +49,6 @@ pub fn return_components(path: &Path, vec: Vec<AngularComponent>) -> Vec<Angular
             _ => {}
         }
     }
-
-    vec
 }
 
 pub fn remove_empty_and_ignored(vec: Vec<AngularComponent>) -> Vec<AngularComponent> {

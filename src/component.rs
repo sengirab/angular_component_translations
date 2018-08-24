@@ -11,12 +11,12 @@ lazy_static! {
     static ref HTML: Regex = Regex::new(r#"(?m)\{\{\s?['|"]([\w|\.]*)['|"]\s?\|\s?translate\s?}}"#).unwrap();
 }
 lazy_static! {
-    static ref C_NAME: Regex = Regex::new(r"(?m)export\sclass\s(.*?)[\s<]").unwrap();
+    static ref C_NAME: Regex = Regex::new(r"(?m)export\sclass\s(.*?)[\s<]|const\s(.*):\s?Routes").unwrap();
 }
 
 #[derive(Clone, Debug, Serialize)]
 pub struct TranslationResponse {
-    pub components: Vec<AngularComponent>,
+    pub components: HashMap<String, AngularComponent>,
     pub routes: HashMap<String, Vec<String>>,
 }
 
@@ -80,7 +80,13 @@ impl AngularComponent {
 
         C_NAME.captures_iter(&contents)
             .take(1)
-            .fold(String::new(), |res, item| item[1].to_string())
+            .fold(String::new(), |res, item| {
+                if let Some(i) = item.get(1) {
+                    return item[1].to_string()
+                }
+
+                return self.file_name.clone();
+            })
     }
 
     fn get_translations(&self) -> Vec<String> {
