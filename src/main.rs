@@ -2,6 +2,7 @@
 
 #[macro_use]
 extern crate lazy_static;
+extern crate pcre;
 extern crate regex;
 extern crate serde;
 #[macro_use]
@@ -10,6 +11,7 @@ extern crate serde_json;
 
 use component::{AngularComponent, ComponentType};
 use component::TranslationResponse;
+use pcre::Pcre;
 use regex::CaptureMatches;
 use regex::Regex;
 use regex::RegexSet;
@@ -29,13 +31,14 @@ mod route;
 
 lazy_static! {
     static ref ROUTES: Regex = Regex::new(r"(?m)Routes\s?=\s?(\[\s[^;]*);").unwrap();
-    static ref ROUTE: Regex = Regex::new(r"(?sm)^[[:blank:]]{4}({.*?^[[:blank:]]{4}})|}").unwrap();
 
     static ref PATH: Regex = Regex::new(r#"(?m)path:\s['"`](.*?)['"`]"#).unwrap();
     static ref COMPONENT: Regex = Regex::new(r"(?m)component:\s?(\w+)").unwrap();
     static ref LOAD: Regex = Regex::new(r"(?mis)(?:\schildren.*#)|(\w+\.\w+)#").unwrap();
-    static ref CHILDREN: Regex = Regex::new(r"(?ms)children: \[(.*?)\]").unwrap();
+    static ref CHILDREN: Regex = Regex::new(r"(?ms)children: \[(.*?)^[[:blank:]]{8}]").unwrap();
     static ref COMPONENTS: Regex = Regex::new(r"(?m)<(app-(?:\w+-?)*)").unwrap();
+    static ref ENTRY: Regex = Regex::new(r"(?sm)entryComponents: \[\s*(.*)]").unwrap();
+
 }
 
 lazy_static! {
@@ -99,21 +102,33 @@ fn get_routes(component: &AngularComponent) -> HashMap<String, Vec<String>> {
     // Add "path" and "hash map" as params, hash map is used to add routes.
     // path can be used to concat last path.
     let mut map = HashMap::new();
+
     setup_route_hierarchy(&routes.unwrap(), &String::new(), &mut map, None);
+
+    // Drain map of all duplicates
+    map = map.into_iter().map(|(k, mut v)| {
+        let set: HashSet<_> = v.drain(..).collect();
+        v.extend(set.into_iter());
+
+        (k, v)
+    }).collect();
 
     map
 }
 
 fn setup_route_hierarchy(routes: &String, path: &String, map: &mut HashMap<String, Vec<String>>, has_main_components: Option<Vec<String>>) {
-    for route in ROUTE.captures_iter(routes) {
-        let group: &str = &route[1];
+    let mut re = Pcre::compile(r"(?m)(\{[^}\{]*(?:(?R)[^}{]*)*+\})").unwrap();
+    let matches = re.matches(routes);
+
+    for capture in matches {
+        let group: &str = capture.group(1);
         // Match all different types in here
         let set = RegexSet::new(&[PATH.as_str(), COMPONENT.as_str(), LOAD.as_str(), CHILDREN.as_str()]).unwrap();
         let set: Vec<_> = set.matches(group).into_iter().collect();
 
         // Clone path for each route found. We want a full path PER main route,
         let mut path = path.clone();
-        let mut main_components: Vec<String> =  Vec::new();
+        let mut main_components: Vec<String> = Vec::new();
         for item in set {
             match item {
                 // Concat path. Only thing to do here is concat, so components can be added.
@@ -134,7 +149,7 @@ fn setup_route_hierarchy(routes: &String, path: &String, map: &mut HashMap<Strin
                     let mut found = vec![matches.clone()];
                     find_components(&matches, &mut found);
 
-                    let components = map.entry(path.clone()).or_insert(Vec::new());
+                    let mut components = map.entry(path.clone()).or_insert(Vec::new());
                     components.extend(found);
                     if let Some(c) = has_main_components.clone() {
                         components.extend(c);
@@ -172,17 +187,25 @@ fn find_components(name: &str, found: &mut Vec<String>) {
     // refactor to use vec filter with only components
     let state = STATE.read().unwrap();
     let component = state.get(name).unwrap();
-    let component = component.open_html();
+
+    let html = component.open_html();
+    let ts = component.open_ts();
 
     // find components in html
-    let mut components: Vec<String> = COMPONENTS.captures_iter(&component).into_iter().map(|c| c[1].to_string()).collect();
-    components.dedup();
+    let mut components: Vec<String> = COMPONENTS.captures_iter(&html)
+        .into_iter().map(|c| selector_to_component_name(&c[1].to_string())).collect();
+
+    if let Some(mut s) = capture_group(ENTRY.captures_iter(&ts)) {
+        let vec = s.split(",");
+        let mut vec: Vec<&str> = vec.collect();
+
+        let vec: Vec<String> = vec.into_iter().map(|mut s| s.trim_left_matches("\n").trim().to_string()).collect();
+        components.extend(vec);
+    }
 
     for component in &components {
-        let name = selector_to_component_name(component);
-        found.push(name.clone());
-
-        find_components(&name, found);
+        found.push(component.clone());
+        find_components(component, found);
     }
 }
 
@@ -191,13 +214,13 @@ fn selector_to_component_name(name: &str) -> String {
     let mut vec: Vec<&str> = vec.collect();
 
     vec.remove(0);
-    let mut vec: String = vec.iter().map(|s| some_kind_of_uppercase_first_letter(s)).collect();
+    let mut vec: String = vec.iter().map(|s| uppercase_first_letter(s)).collect();
     vec.push_str("Component");
 
     vec
 }
 
-fn some_kind_of_uppercase_first_letter(s: &str) -> String {
+fn uppercase_first_letter(s: &str) -> String {
     let mut c = s.chars();
     match c.next() {
         None => String::new(),
