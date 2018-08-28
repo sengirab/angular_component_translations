@@ -15,11 +15,9 @@ lazy_static! {
 }
 
 pub fn create_translate_file(mut translations: TranslationResponse) {
-//    translations.components = remove_empty_and_ignored(translations.components);
-
     let json = serde_json::to_string(&translations).unwrap();
     let mut file = File::create("component_translation_keys.json")
-        .expect("Failed creating file.");
+        .expect("Failed creating file");
 
     file.write(json.into_bytes().as_slice())
         .expect("Failed writing file");
@@ -69,4 +67,35 @@ pub fn replace_extension(file_name: &String, replace: &str) -> String {
     vec.push(replace);
 
     vec.join(".")
+}
+
+pub fn capture_group(captures: CaptureMatches) -> Option<String> {
+    captures
+        .take(1)
+        .fold(None, |res, item| {
+            if let Some(i) = item.get(1) {
+                return Some(item[1].to_string());
+            }
+
+            None
+        })
+}
+
+pub fn selector_to_component_name(name: &str) -> String {
+    let vec = name.split("-");
+    let mut vec: Vec<&str> = vec.collect();
+
+    vec.remove(0);
+    let mut vec: String = vec.iter().map(|s| uppercase_first_letter(s)).collect();
+    vec.push_str("Component");
+
+    vec
+}
+
+pub fn uppercase_first_letter(s: &str) -> String {
+    let mut c = s.chars();
+    match c.next() {
+        None => String::new(),
+        Some(f) => f.to_uppercase().chain(c).collect(),
+    }
 }

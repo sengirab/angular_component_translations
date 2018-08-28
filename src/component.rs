@@ -5,6 +5,10 @@ use std::fs;
 use std::fs::DirEntry;
 use std::fs::File;
 use std::io::prelude::*;
+use std::ops::Deref;
+use std::path::Path;
+use utilities::capture_group;
+use utilities::selector_to_component_name;
 
 lazy_static! {
     static ref TS: Regex = Regex::new(r#"(?m)this\.translate\.instant\(['"`]([\w.${}]*)['"`]"#).unwrap();
@@ -14,10 +18,51 @@ lazy_static! {
     static ref C_NAME: Regex = Regex::new(r"(?m)export\sclass\s(.*?)[\s<]|const\s(.*):\s?Routes").unwrap();
 }
 
-#[derive(Clone, Debug, Serialize)]
-pub struct TranslationResponse {
-    pub components: HashMap<String, AngularComponent>,
-    pub routes: HashMap<String, Vec<String>>,
+#[derive(Debug, Serialize)]
+pub struct AngularComponents {
+    value: HashMap<String, AngularComponent>,
+}
+
+impl Deref for AngularComponents {
+    type Target = HashMap<String, AngularComponent>;
+
+    fn deref(&self) -> &HashMap<String, AngularComponent> {
+        &self.value
+    }
+}
+
+impl AngularComponents {
+    pub fn new(path: &Path) -> AngularComponents {
+        let mut map = HashMap::new();
+        Self::set_components(path, &mut map);
+
+        AngularComponents {
+            value: map
+        }
+    }
+
+    fn set_components(path: &Path, map: &mut HashMap<String, AngularComponent>) {
+        let paths = fs::read_dir(path).unwrap();
+        let mut map = map;
+
+        for path in paths {
+            let entry = path.unwrap();
+
+            if entry.metadata().unwrap().is_dir() {
+                let path = entry.path();
+                let path = &Path::new(path.as_path());
+
+                Self::return_components(path, &mut map);
+            } else {
+                if let Some(ex) = entry.path().extension() {
+                    if ex == "ts" {
+                        let component = AngularComponent::new(entry);
+                        map.insert(component.name.clone(), component);
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
@@ -75,6 +120,24 @@ impl AngularComponent {
         contents
     }
 
+    pub fn get_used_components(&self) -> Vec<String> {
+        let html = self.open_html();
+        let ts = self.open_ts();
+
+        let mut components: Vec<String> = COMPONENTS.captures_iter(&html)
+            .into_iter().map(|c| selector_to_component_name(&c[1].to_string())).collect();
+
+        if let Some(mut s) = capture_group(ENTRY.captures_iter(&ts)) {
+            let vec = s.split(",");
+            let mut vec: Vec<&str> = vec.collect();
+
+            let vec: Vec<String> = vec.into_iter().map(|mut s| s.trim_left_matches("\n").trim().to_string()).collect();
+            components.extend(vec);
+        }
+
+        components
+    }
+
     fn register_name(&self) -> String {
         let contents = &self.open_ts();
 
@@ -82,7 +145,7 @@ impl AngularComponent {
             .take(1)
             .fold(String::new(), |res, item| {
                 if let Some(i) = item.get(1) {
-                    return item[1].to_string()
+                    return item[1].to_string();
                 }
 
                 return self.file_name.clone();
