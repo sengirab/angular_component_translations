@@ -11,47 +11,22 @@ extern crate serde_json;
 
 use component::{AngularComponent, ComponentType};
 use component::AngularComponents;
-use component::TranslationResponse;
-use pcre::Pcre;
-use regex::CaptureMatches;
-use regex::Regex;
-use regex::RegexSet;
 use route::AngularRoutes;
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::env;
 use std::io;
 use std::path::Path;
-use std::sync::Arc;
-use std::sync::RwLock;
-use utilities::{create_translate_file, replace_extension, return_components};
-use utilities::capture_group;
-use utilities::selector_to_component_name;
+use utilities::{create_translate_file};
 
 mod component;
 mod utilities;
 mod route;
 
-lazy_static! {
-    static ref ROUTES: Regex = Regex::new(r"(?m)Routes\s?=\s?(\[\s[^;]*);").unwrap();
-
-    static ref PATH: Regex = Regex::new(r#"(?m)path:\s['"`](.*?)['"`]"#).unwrap();
-    static ref COMPONENT: Regex = Regex::new(r"(?m)component:\s?(\w+)").unwrap();
-    static ref LOAD: Regex = Regex::new(r"(?mis)(?:\schildren.*#)|(\w+\.\w+)#").unwrap();
-    static ref CHILDREN: Regex = Regex::new(r"(?ms)children: \[(.*?)^[[:blank:]]{8}]").unwrap();
-    static ref COMPONENTS: Regex = Regex::new(r"(?m)<(app-(?:\w+-?)*)").unwrap();
-    static ref ENTRY: Regex = Regex::new(r"(?sm)entryComponents: \[\s*(.*)]").unwrap();
-
-}
-
-lazy_static! {
-    static ref STATE: Arc<RwLock<AngularComponents> = Arc::new(RwLock::new(HashMap::new()));
-}
-
-struct AngularStructure {
-    routes: AngularRoutes,
-    components: AngularComponents,
+#[derive(Debug, Serialize)]
+pub struct AngularStructure {
+    pub routes: AngularRoutes,
+    pub components: AngularComponents,
 }
 
 impl AngularStructure {
@@ -64,11 +39,13 @@ impl AngularStructure {
         structure
     }
 
-    pub fn setup_routes(&mut self, component: &AngularComponent) {}
+    pub fn setup_routes(&mut self, component: &AngularComponent) {
+        self.routes = AngularRoutes::new(component, &self.components);
+    }
 
     pub fn get_component_by_kind(&self, kind: ComponentType) -> Vec<AngularComponent> {
         self.components.iter().map(|(_, component)| component).filter(|component| {
-            if component_kind == component.kind {
+            if kind == component.kind {
                 return true;
             }
 
@@ -118,7 +95,7 @@ fn main() {
             Ordering::Greater => println!("Choose from the list please"),
             _ => {
                 structure.setup_routes(&routes[main_route]);
-                create_translate_file(res);
+                create_translate_file(structure);
 
                 break;
             }

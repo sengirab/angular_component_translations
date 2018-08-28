@@ -1,52 +1,31 @@
 extern crate serde_json;
 
-use component::{AngularComponent, ComponentType, TranslationResponse};
-use regex::CaptureMatches;
-use regex::Regex;
-use std::fs;
+use AngularStructure;
+use component::{AngularComponent, ComponentType};
+use regex::{CaptureMatches, Regex};
 use std::fs::File;
 use std::io::prelude::*;
-use std::path::Path;
-use std::collections::HashMap;
 
 lazy_static! {
-    static ref RE_TS: Regex = Regex::new(r#"(?m)this\.translate\.instant\(['"`]([\w.${}]*)['"`]"#).unwrap();
-    static ref RE_HTML: Regex = Regex::new(r#"(?m)\{\{\s?['|"]([\w|\.]*)['|"]\s?\|\s?translate\s?}}"#).unwrap();
+    pub static ref ROUTES: Regex = Regex::new(r"(?m)Routes\s?=\s?(\[\s[^;]*);").unwrap();
+    pub static ref PATH: Regex = Regex::new(r#"(?m)path:\s['"`](.*?)['"`]"#).unwrap();
+    pub static ref COMPONENT: Regex = Regex::new(r"(?m)component:\s?(\w+)").unwrap();
+    pub static ref LOAD: Regex = Regex::new(r"(?mis)(?:\schildren.*#)|(\w+\.\w+)#").unwrap();
+    pub static ref CHILDREN: Regex = Regex::new(r"(?ms)children: \[(.*?)^[[:blank:]]{8}]").unwrap();
+    pub static ref COMPONENTS: Regex = Regex::new(r"(?m)<(app-(?:\w+-?)*)").unwrap();
+    pub static ref ENTRY: Regex = Regex::new(r"(?sm)entryComponents: \[\s*(.*)]").unwrap();
+    pub static ref TS: Regex = Regex::new(r#"(?m)this\.translate\.instant\(['"`]([\w.${}]*)['"`]"#).unwrap();
+    pub static ref HTML: Regex = Regex::new(r#"(?m)\{\{\s?['|"]([\w|\.]*)['|"]\s?\|\s?translate\s?}}"#).unwrap();
+    pub static ref C_NAME: Regex = Regex::new(r"(?m)export\sclass\s(.*?)[\s<]|const\s(.*):\s?Routes").unwrap();
 }
 
-pub fn create_translate_file(mut translations: TranslationResponse) {
-    let json = serde_json::to_string(&translations).unwrap();
+pub fn create_translate_file(structure: AngularStructure) {
+    let json = serde_json::to_string(&structure).unwrap();
     let mut file = File::create("component_translation_keys.json")
         .expect("Failed creating file");
 
     file.write(json.into_bytes().as_slice())
         .expect("Failed writing file");
-}
-
-pub fn return_components(path: &Path, map: &mut HashMap<String, AngularComponent>) {
-    let paths = fs::read_dir(path).unwrap();
-    let mut map = map;
-
-    for path in paths {
-        match path {
-            Ok(entry) => {
-                if entry.metadata().unwrap().is_dir() {
-                    let path = entry.path();
-                    let path = &Path::new(path.as_path());
-
-                    return_components(path, &mut map);
-                } else {
-                    if let Some(ex) = entry.path().extension() {
-                        if ex == "ts" {
-                            let component = AngularComponent::new(entry);
-                            map.insert(component.name.clone(), component);
-                        }
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
 }
 
 pub fn remove_empty_and_ignored(vec: Vec<AngularComponent>) -> Vec<AngularComponent> {
@@ -72,8 +51,8 @@ pub fn replace_extension(file_name: &String, replace: &str) -> String {
 pub fn capture_group(captures: CaptureMatches) -> Option<String> {
     captures
         .take(1)
-        .fold(None, |res, item| {
-            if let Some(i) = item.get(1) {
+        .fold(None, |_res, item| {
+            if let Some(_) = item.get(1) {
                 return Some(item[1].to_string());
             }
 

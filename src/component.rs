@@ -1,5 +1,3 @@
-use regex::CaptureMatches;
-use regex::Regex;
 use std::collections::HashMap;
 use std::fs;
 use std::fs::DirEntry;
@@ -7,20 +5,11 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::ops::Deref;
 use std::path::Path;
-use utilities::capture_group;
-use utilities::selector_to_component_name;
-
-lazy_static! {
-    static ref TS: Regex = Regex::new(r#"(?m)this\.translate\.instant\(['"`]([\w.${}]*)['"`]"#).unwrap();
-    static ref HTML: Regex = Regex::new(r#"(?m)\{\{\s?['|"]([\w|\.]*)['|"]\s?\|\s?translate\s?}}"#).unwrap();
-}
-lazy_static! {
-    static ref C_NAME: Regex = Regex::new(r"(?m)export\sclass\s(.*?)[\s<]|const\s(.*):\s?Routes").unwrap();
-}
+use utilities::{capture_group, selector_to_component_name, COMPONENTS, ENTRY, C_NAME, TS, HTML};
 
 #[derive(Debug, Serialize)]
 pub struct AngularComponents {
-    value: HashMap<String, AngularComponent>,
+    pub value: HashMap<String, AngularComponent>,
 }
 
 impl Deref for AngularComponents {
@@ -52,7 +41,7 @@ impl AngularComponents {
                 let path = entry.path();
                 let path = &Path::new(path.as_path());
 
-                Self::return_components(path, &mut map);
+                Self::set_components(path, &mut map);
             } else {
                 if let Some(ex) = entry.path().extension() {
                     if ex == "ts" {
@@ -127,11 +116,11 @@ impl AngularComponent {
         let mut components: Vec<String> = COMPONENTS.captures_iter(&html)
             .into_iter().map(|c| selector_to_component_name(&c[1].to_string())).collect();
 
-        if let Some(mut s) = capture_group(ENTRY.captures_iter(&ts)) {
+        if let Some(s) = capture_group(ENTRY.captures_iter(&ts)) {
             let vec = s.split(",");
             let mut vec: Vec<&str> = vec.collect();
 
-            let vec: Vec<String> = vec.into_iter().map(|mut s| s.trim_left_matches("\n").trim().to_string()).collect();
+            let vec: Vec<String> = vec.into_iter().map(|s| s.trim_left_matches("\n").trim().to_string()).collect();
             components.extend(vec);
         }
 
@@ -143,8 +132,8 @@ impl AngularComponent {
 
         C_NAME.captures_iter(&contents)
             .take(1)
-            .fold(String::new(), |res, item| {
-                if let Some(i) = item.get(1) {
+            .fold(String::new(), |_res, item| {
+                if let Some(_) = item.get(1) {
                     return item[1].to_string();
                 }
 
@@ -160,7 +149,7 @@ impl AngularComponent {
             .into_iter().map(|c| c[1].to_string()).collect();
 
         // HTML implementation
-        if let Some(c) = &self.html {
+        if let Some(_c) = &self.html {
             let contents = &self.open_html();
             matches.extend(HTML.captures_iter(&contents)
                 .into_iter().map(|c| c[1].to_string()).collect::<Vec<String>>());
