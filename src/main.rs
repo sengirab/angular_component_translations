@@ -9,68 +9,20 @@ extern crate serde;
 extern crate serde_derive;
 extern crate serde_json;
 
-use component::{AngularComponent, ComponentType};
-use component::AngularComponents;
-use route::AngularRoutes;
 use std::cmp::Ordering;
-use std::collections::HashMap;
 use std::env;
 use std::io;
-use std::path::Path;
-use utilities::{create_translate_file};
+use structure::AngularStructure;
+use structure::component::AngularComponent;
+use structure::component::ComponentType;
+use std::fs::File;
+use std::io::Write;
 
-mod component;
-mod utilities;
-mod route;
-
-#[derive(Debug, Serialize)]
-pub struct AngularStructure {
-    pub routes: AngularRoutes,
-    pub components: AngularComponents,
-}
-
-impl AngularStructure {
-    pub fn new(path: &Path) -> AngularStructure {
-        let structure = AngularStructure {
-            components: Self::setup_components(path),
-            routes: AngularRoutes { value: HashMap::new() },
-        };
-
-        structure
-    }
-
-    pub fn setup_routes(&mut self, component: &AngularComponent) {
-        self.routes = AngularRoutes::new(component, &self.components);
-    }
-
-    pub fn get_component_by_kind(&self, kind: ComponentType) -> Vec<AngularComponent> {
-        self.components.iter().map(|(_, component)| component).filter(|component| {
-            if kind == component.kind {
-                return true;
-            }
-
-            false
-        }).cloned().collect()
-    }
-
-    fn setup_components(path: &Path) -> AngularComponents {
-        AngularComponents::new(path)
-    }
-
-    fn find_components(&self, name: &str, found: &mut Vec<String>) {
-        let component = self.components.get(name).unwrap();
-        let components = component.get_used_components();
-
-        for component in &components {
-            found.push(component.clone());
-            self.find_components(component, found);
-        }
-    }
-}
+mod structure;
 
 fn main() {
-    let _ = &env::current_dir().unwrap();
-    let path = &Path::new("../../Jasper/Dynasource.Angular/apps/portal/");
+    let path = env::current_exe().unwrap();
+    let path = path.parent().unwrap();
 
     let mut structure = AngularStructure::new(path);
     let routes: Vec<AngularComponent> = structure.get_component_by_kind(ComponentType::Route);
@@ -101,4 +53,18 @@ fn main() {
             }
         };
     }
+}
+
+pub fn create_translate_file(structure: AngularStructure) {
+    let path = env::current_exe().unwrap();
+    let path = path.parent().unwrap();
+    let path = path.join("component_translation_keys.json");
+
+
+    let json = serde_json::to_string(&structure).unwrap();
+    let mut file = File::create(path)
+        .expect("Failed creating file");
+
+    file.write(json.into_bytes().as_slice())
+        .expect("Failed writing file");
 }

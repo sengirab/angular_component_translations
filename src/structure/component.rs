@@ -5,7 +5,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::ops::Deref;
 use std::path::Path;
-use utilities::{capture_group, selector_to_component_name, COMPONENTS, ENTRY, C_NAME, TS, HTML};
+use structure::utilities::{selector_to_component_name, capture_group, COMPONENTS, ENTRY, C_NAME, TS, HTML};
 
 #[derive(Debug, Serialize)]
 pub struct AngularComponents {
@@ -31,7 +31,7 @@ impl AngularComponents {
     }
 
     fn set_components(path: &Path, map: &mut HashMap<String, AngularComponent>) {
-        let paths = fs::read_dir(path).unwrap();
+        let paths = fs::read_dir(path).expect(format!("Directory not found {:?}", path).as_str());
         let mut map = map;
 
         for path in paths {

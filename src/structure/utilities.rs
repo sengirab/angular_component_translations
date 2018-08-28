@@ -1,10 +1,6 @@
 extern crate serde_json;
 
-use AngularStructure;
-use component::{AngularComponent, ComponentType};
 use regex::{CaptureMatches, Regex};
-use std::fs::File;
-use std::io::prelude::*;
 
 lazy_static! {
     pub static ref ROUTES: Regex = Regex::new(r"(?m)Routes\s?=\s?(\[\s[^;]*);").unwrap();
@@ -17,25 +13,6 @@ lazy_static! {
     pub static ref TS: Regex = Regex::new(r#"(?m)this\.translate\.instant\(['"`]([\w.${}]*)['"`]"#).unwrap();
     pub static ref HTML: Regex = Regex::new(r#"(?m)\{\{\s?['|"]([\w|\.]*)['|"]\s?\|\s?translate\s?}}"#).unwrap();
     pub static ref C_NAME: Regex = Regex::new(r"(?m)export\sclass\s(.*?)[\s<]|const\s(.*):\s?Routes").unwrap();
-}
-
-pub fn create_translate_file(structure: AngularStructure) {
-    let json = serde_json::to_string(&structure).unwrap();
-    let mut file = File::create("component_translation_keys.json")
-        .expect("Failed creating file");
-
-    file.write(json.into_bytes().as_slice())
-        .expect("Failed writing file");
-}
-
-pub fn remove_empty_and_ignored(vec: Vec<AngularComponent>) -> Vec<AngularComponent> {
-    vec.into_iter().filter(|component| {
-        if component.kind == ComponentType::Ignore || component.translations.is_empty() {
-            return false;
-        }
-
-        true
-    }).collect()
 }
 
 pub fn replace_extension(file_name: &String, replace: &str) -> String {

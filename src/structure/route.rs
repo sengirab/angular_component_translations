@@ -1,10 +1,11 @@
-use component::{AngularComponent, AngularComponents};
 use pcre::Pcre;
-use std::collections::{HashMap, HashSet};
-use std::ops::Deref;
 use regex::RegexSet;
-use utilities::{capture_group, replace_extension, ROUTES, PATH, COMPONENT, LOAD, CHILDREN};
+use std::collections::HashMap;
+use std::ops::Deref;
 use std::ops::DerefMut;
+use structure::component::AngularComponent;
+use structure::component::AngularComponents;
+use structure::utilities::{capture_group, CHILDREN, COMPONENT, LOAD, PATH, replace_extension, ROUTES};
 
 #[derive(Debug, Serialize)]
 pub struct AngularRoutes {
@@ -81,7 +82,7 @@ impl AngularRoutes {
                         let mut found = vec![matches.clone()];
                         self.find_components(&matches, &mut found, &components);
 
-                        let mut route_components =  self.entry(path.clone()).or_insert(Vec::new());
+                        let mut route_components = self.entry(path.clone()).or_insert(Vec::new());
 
                         route_components.extend(found);
                         if let Some(c) = main_components.clone() {
@@ -97,13 +98,13 @@ impl AngularRoutes {
                             let component = components.get(&file_name).unwrap();
 
                             let routes = capture_group(ROUTES.captures_iter(&component.open_ts()));
-                            &self.setup_route_hierarchy(&routes.unwrap(), &path, None, &components);
+                            self.setup_route_hierarchy(&routes.unwrap(), &path, None, &components);
                         }
                     }
                     // Go recursive with matches.
                     3 => {
                         let matches = capture_group(CHILDREN.captures_iter(group));
-                        &self.setup_route_hierarchy(&matches.unwrap(), &path, Some(previous_components.clone()), &components);
+                        self.setup_route_hierarchy(&matches.unwrap(), &path, Some(previous_components.clone()), &components);
                     }
                     _ => {}
                 }
