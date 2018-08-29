@@ -9,57 +9,57 @@ extern crate serde;
 extern crate serde_derive;
 extern crate serde_json;
 
-use std::cmp::Ordering;
 use std::env;
-use std::io;
 use structure::AngularStructure;
 use structure::component::AngularComponent;
 use structure::component::ComponentType;
 use std::fs::File;
 use std::io::Write;
+use std::path::Path;
 
 mod structure;
 
 fn main() {
+    let user_path = std::env::args_os().skip(1).next()
+        .expect("usage: component-translations <path> <routing-file>");
     let path = env::current_exe().unwrap();
     let path = path.parent().unwrap();
+    let path = path.join(user_path.into_string().unwrap());
 
-    let mut structure = AngularStructure::new(path);
+    let mut structure = AngularStructure::new(path.clone());
     let routes: Vec<AngularComponent> = structure.get_component_by_kind(ComponentType::Route);
 
-    println!("Choose main route file:");
-    loop {
-        for (i, route) in routes.iter().enumerate() {
-            println!("{}) {}", i, route.file_name);
+    let file = match std::env::args_os().skip(2).next() {
+        Some(file) => file.into_string().unwrap(),
+        None => {
+            println!("usage: component-translations <path> <routing-file>");
+            std::process::exit(0);
         }
+    };
 
-        let mut main_route = String::new();
-        io::stdin().read_line(&mut main_route)
-            .expect("Failed to read line");
+    let component = match structure.components.get(&file) {
+        Some(c) => Some(c.clone()),
+        None => None
+    };
 
-        let main_route: usize = match main_route.trim().parse() {
-            Ok(num) => num,
-            Err(_) => continue,
-        };
-
-        let length = &routes.len() - 1;
-        match main_route.cmp(&length) {
-            Ordering::Greater => println!("Choose from the list please"),
-            _ => {
-                structure.setup_routes(&routes[main_route]);
-                create_translate_file(structure);
-
-                break;
+    match component {
+        Some(component) => {
+            structure.setup_routes(&component);
+            create_translate_file(structure, path.clone());
+        },
+        None => {
+            println!("Please choose one of the following routes");
+            for (_i, route) in routes.iter().enumerate() {
+                println!("{}", route.file_name);
             }
-        };
+
+            std::process::exit(0);
+        }
     }
 }
 
-pub fn create_translate_file(structure: AngularStructure) {
-    let path = env::current_exe().unwrap();
-    let path = path.parent().unwrap();
-    let path = path.join("component_translation_keys.json");
-
+fn create_translate_file<P: AsRef<Path>>(structure: AngularStructure, path: P) {
+    let path = path.as_ref().join("component_translation_keys.json");
 
     let json = serde_json::to_string(&structure).unwrap();
     let mut file = File::create(path)

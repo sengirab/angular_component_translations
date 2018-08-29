@@ -16,9 +16,9 @@ pub struct AngularStructure {
 }
 
 impl AngularStructure {
-    pub fn new(path: &Path) -> AngularStructure {
+    pub fn new<P: AsRef<Path>>(path: P) -> AngularStructure {
         let structure = AngularStructure {
-            components: Self::setup_components(path),
+            components: Self::setup_components(path.as_ref()),
             routes: AngularRoutes { value: HashMap::new() },
         };
 
