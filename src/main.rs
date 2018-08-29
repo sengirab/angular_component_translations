@@ -16,23 +16,26 @@ use structure::component::ComponentType;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
+use std::path::PathBuf;
 
 mod structure;
 
 fn main() {
-    let user_path = std::env::args_os().skip(1).next()
-        .expect("usage: component-translations <path> <routing-file>");
-    let path = env::current_exe().unwrap();
-    let path = path.parent().unwrap();
-    let path = path.join(user_path.into_string().unwrap());
+    let input_path = std::env::args_os().skip(1).next()
+        .expect("usage: component-translations <path> <output-path> <routing-file>");
+    let input_path = create_path(input_path.into_string().unwrap());
 
-    let mut structure = AngularStructure::new(path.clone());
+    let output_path = std::env::args_os().skip(2).next()
+        .expect("usage: component-translations <path> <output-path> <routing-file>");
+    let output_path = create_path(output_path.into_string().unwrap());
+
+    let mut structure = AngularStructure::new(input_path);
     let routes: Vec<AngularComponent> = structure.get_component_by_kind(ComponentType::Route);
 
-    let file = match std::env::args_os().skip(2).next() {
+    let file = match std::env::args_os().skip(3).next() {
         Some(file) => file.into_string().unwrap(),
         None => {
-            println!("usage: component-translations <path> <routing-file>");
+            println!("usage: component-translations <path> <output-path> <routing-file>");
             std::process::exit(0);
         }
     };
@@ -45,7 +48,7 @@ fn main() {
     match component {
         Some(component) => {
             structure.setup_routes(&component);
-            create_translate_file(structure, path.clone());
+            create_translate_file(structure, output_path);
         },
         None => {
             println!("Please choose one of the following routes");
@@ -67,4 +70,11 @@ fn create_translate_file<P: AsRef<Path>>(structure: AngularStructure, path: P) {
 
     file.write(json.into_bytes().as_slice())
         .expect("Failed writing file");
+}
+
+fn create_path<P: AsRef<Path>>(p: P) -> PathBuf {
+    let path = env::current_exe().unwrap();
+    let path = path.parent().unwrap();
+
+    path.join(p)
 }
