@@ -6,6 +6,7 @@ use std::io::prelude::*;
 use std::ops::Deref;
 use std::path::Path;
 use structure::utilities::{selector_to_component_name, capture_group, COMPONENTS, ENTRY, C_NAME, TS, HTML};
+use std::ops::DerefMut;
 
 #[derive(Debug, Serialize)]
 pub struct AngularComponents {
@@ -20,19 +21,24 @@ impl Deref for AngularComponents {
     }
 }
 
+impl DerefMut for AngularComponents {
+    fn deref_mut(&mut self) -> &mut HashMap<String, AngularComponent> {
+        &mut self.value
+    }
+}
+
 impl AngularComponents {
     pub fn new(path: &Path) -> AngularComponents {
-        let mut map = HashMap::new();
-        Self::set_components(path, &mut map);
+        let mut components = AngularComponents {
+            value: HashMap::new()
+        };
 
-        AngularComponents {
-            value: map
-        }
+        components.set_components(path);
+        components
     }
 
-    fn set_components(path: &Path, map: &mut HashMap<String, AngularComponent>) {
+    fn set_components(&mut self, path: &Path) {
         let paths = fs::read_dir(path).expect(format!("Directory not found {:?}", path).as_str());
-        let mut map = map;
 
         for path in paths {
             let entry = path.unwrap();
@@ -41,12 +47,12 @@ impl AngularComponents {
                 let path = entry.path();
                 let path = &Path::new(path.as_path());
 
-                Self::set_components(path, &mut map);
+                self.set_components(path);
             } else {
                 if let Some(ex) = entry.path().extension() {
                     if ex == "ts" {
                         let component = AngularComponent::new(entry);
-                        map.insert(component.name.clone(), component);
+                        self.insert(component.name.clone(), component);
                     }
                 }
             }

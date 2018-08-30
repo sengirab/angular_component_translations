@@ -10,13 +10,13 @@ extern crate serde_derive;
 extern crate serde_json;
 
 use std::env;
-use structure::AngularStructure;
-use structure::component::AngularComponent;
-use structure::component::ComponentType;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
+use structure::AngularStructure;
+use structure::component::AngularComponent;
+use structure::component::ComponentType;
 
 mod structure;
 
@@ -49,11 +49,11 @@ fn main() {
         Some(component) => {
             structure.setup_routes(&component);
             create_translate_file(structure, output_path);
-        },
+        }
         None => {
             println!("Please choose one of the following routes");
             for (_i, route) in routes.iter().enumerate() {
-                println!("{}", route.file_name);
+                println!(" -> {}", route.file_name);
             }
 
             std::process::exit(0);

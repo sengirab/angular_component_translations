@@ -6,6 +6,7 @@ use std::ops::DerefMut;
 use structure::component::AngularComponent;
 use structure::component::AngularComponents;
 use structure::utilities::{capture_group, CHILDREN, COMPONENT, LOAD, PATH, replace_extension, ROUTES};
+use std::collections::HashSet;
 
 #[derive(Debug, Serialize)]
 pub struct AngularRoutes {
@@ -36,8 +37,22 @@ impl AngularRoutes {
         };
 
         routes.setup_route_hierarchy(&content.unwrap(), &String::new(), None, components);
+        routes.dedup();
+
         routes
     }
+
+    fn dedup(&mut self) {
+        let value: HashMap<String, Vec<String>> = self.clone().into_iter().map(|(k, mut v)| {
+            let set: HashSet<_> = v.drain(..).collect();
+            v.extend(set.into_iter());
+
+            (k, v)
+        }).collect();
+
+        self.value = value;
+    }
+
 
     fn find_components(&self, name: &str, found: &mut Vec<String>, components: &AngularComponents) {
         let component = components.get(name).unwrap();
